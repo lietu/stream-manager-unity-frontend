@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Threading;
 using UnityEngine;
 using WebSocketSharp;
 
@@ -29,10 +30,12 @@ public class BitsActions
 public class BitData
 {
     public int amount;
+    public string style;
 
-    public BitData(int amount)
+    public BitData(int amount, string style = "bit")
     {
         this.amount = amount;
+        this.style = style;
     }
 
     static public BitData Random()
@@ -115,6 +118,7 @@ public class ConnectionHandler : MonoBehaviour {
         else
         {
             // this.addTexture(sphere, bit);
+            this.SetStyleMaterial(sphere, bit);
 
             sphere.transform.localScale = this.GetScale(bit);
 
@@ -164,6 +168,12 @@ public class ConnectionHandler : MonoBehaviour {
         return GameObject.CreatePrimitive(PrimitiveType.Sphere);
     }
 
+    void SetStyleMaterial(GameObject sphere, BitData bit)
+    {
+        var renderer = sphere.GetComponent<Renderer>();
+        renderer.material = this.GetBitMaterial(bit);
+    }
+
     void MakeFireball(GameObject sphere)
     {
         var renderer = sphere.GetComponent<Renderer>();
@@ -177,6 +187,12 @@ public class ConnectionHandler : MonoBehaviour {
         float z = UnityEngine.Random.Range(-0.1F, 0.1F);
         rb.velocity = new Vector3(x, y, z);
     }
+
+    Material GetBitMaterial(BitData bit)
+    {
+        return Resources.Load(bit.style, typeof(Material)) as Material;
+    }
+
 
     Material GetFireballMaterial()
     {
@@ -242,7 +258,6 @@ public class ConnectionHandler : MonoBehaviour {
     void reconnect()
     {
         Debug.Log("Connecting to socket at " + this.streamManager);
-
         this.socket = new WebSocket(this.streamManager);
         this.socket.OnOpen += new EventHandler(this.onSocketOpen);
         this.socket.OnClose += new EventHandler<WebSocketSharp.CloseEventArgs>(this.onSocketClosed);
@@ -257,6 +272,7 @@ public class ConnectionHandler : MonoBehaviour {
 
     void onSocketClosed(object sender, CloseEventArgs e)
     {
+        Debug.Log("Socket closed");
         if (this.socket != null)
         {
             this.reconnect();
@@ -270,7 +286,8 @@ public class ConnectionHandler : MonoBehaviour {
         if (msg.type == "bits")
         {
             var words = Regex.Replace(msg.message, @"\s+", " ").Split(' ');
-            foreach (var word in words) {
+            foreach (var word in words)
+            {
                 string wordl = word.ToLower();
                 foreach (var prefix in this.cheerPrefixes)
                 {
@@ -286,11 +303,26 @@ public class ConnectionHandler : MonoBehaviour {
         {
             var actions = JsonUtility.FromJson<BitsActions>(e.Data);
             this.cheerPrefixes = new List<string>();
-            foreach(var action in actions.actions)
+            foreach (var action in actions.actions)
             {
                 Debug.Log("Adding cheer prefix " + action.prefix);
                 this.cheerPrefixes.Add(action.prefix.ToLower());
             }
+        }
+        else if (msg.type == "follower")
+        {
+            var bits = 1;
+            this.queue.Add(new BitData(bits, "follower"));
+        }
+        else if (msg.type == "host")
+        {
+            var bits = 1;
+            this.queue.Add(new BitData(bits, "host"));
+        }
+        else if (msg.type == "subscriber")
+        {
+            var bits = 666;
+            this.queue.Add(new BitData(bits));
         }
         else
         {
